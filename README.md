@@ -153,6 +153,7 @@ Here is a list of distros that are supported out of the box:
 - Debian 13 (Trixie)
 - Debian Unstable (Sid)
 - Alpine Linux
+- Artix Linux
 
 PRs to enable support for other distros are welcome. 
 
@@ -167,6 +168,11 @@ sudo ./build_complete.sh dedede release=trixie
 There is also experimental support for Alpine Linux. The Alpine disk image is about half the size compared to Debian, although some applications are missing. Pass the `distro=alpine` to use it:
 ```bash
 sudo ./build_complete.sh dedede distro=alpine
+```
+
+Artix Linux is also supported. Since Artix does not use systemd, no systemd patching is required in the rootfs itself. To use it, pass `distro=artix`:
+```bash
+sudo ./build_complete.sh dedede distro=artix
 ```
 
 #### How can I install a desktop environment other than XFCE?
