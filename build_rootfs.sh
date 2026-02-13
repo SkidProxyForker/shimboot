@@ -15,7 +15,7 @@ print_help() {
   echo "  user_passwd     - The password for the unprivileged user."
   echo "  disable_base    - Disable the base packages such as zram, cloud-utils, and command-not-found."
   echo "  arch            - The CPU architecture to build the rootfs for."
-  echo "  distro          - The Linux distro to use. This should be either 'debian' or 'alpine'."
+  echo "  distro          - The Linux distro to use. This should be either 'debian', 'ubuntu', 'alpine', or 'artix'."
   echo "If you do not specify the hostname and credentials, you will be prompted for them later."
 }
 
@@ -97,6 +97,57 @@ elif [ "$distro" = "alpine" ]; then
     --root "$rootfs_dir" \
     --initdb add alpine-base
   chroot_script="/opt/setup_rootfs_alpine.sh"
+
+elif [ "$distro" = "artix" ]; then
+  if [ "$arch" != "amd64" ]; then
+    print_error "Artix rootfs creation currently only supports amd64."
+    exit 1
+  fi
+
+  print_info "downloading artix bootstrap rootfs"
+  bootstrap_archive="/tmp/artix-bootstrap-x86_64.tar.xz"
+  bootstrap_extract_dir="/tmp/artix-bootstrap"
+  bootstrap_urls="
+    https://iso.artixlinux.org/iso/latest/artix-bootstrap-x86_64.tar.xz
+    https://mirror1.artixlinux.org/iso/latest/artix-bootstrap-x86_64.tar.xz
+    https://mirror.pascalpuffke.de/artix-linux/iso/latest/artix-bootstrap-x86_64.tar.xz
+  "
+
+  rm -rf "$bootstrap_extract_dir"
+  mkdir -p "$bootstrap_extract_dir"
+  rm -f "$bootstrap_archive"
+
+  downloaded_bootstrap=""
+  for bootstrap_url in $bootstrap_urls; do
+    if wget -q --show-progress "$bootstrap_url" -O "$bootstrap_archive"; then
+      downloaded_bootstrap="1"
+      break
+    fi
+  done
+
+  if [ ! "$downloaded_bootstrap" ]; then
+    print_error "Failed to download artix bootstrap tarball from all known mirrors."
+    print_error "Try manually downloading artix-bootstrap-x86_64.tar.xz and placing it at $bootstrap_archive"
+    exit 1
+  fi
+
+  print_info "extracting artix bootstrap rootfs"
+  tar -xpf "$bootstrap_archive" -C "$bootstrap_extract_dir"
+
+  bootstrap_root=""
+  if [ -d "$bootstrap_extract_dir/root.x86_64" ]; then
+    bootstrap_root="$bootstrap_extract_dir/root.x86_64"
+  else
+    bootstrap_root="$(find "$bootstrap_extract_dir" -mindepth 1 -maxdepth 2 -type d -name 'root.*' | head -n1)"
+  fi
+
+  if [ ! "$bootstrap_root" ]; then
+    print_error "Unable to locate extracted Artix rootfs directory."
+    exit 1
+  fi
+
+  cp -a "$bootstrap_root"/. "$rootfs_dir"
+  chroot_script="/opt/setup_rootfs_artix.sh"
 
 else
   print_error "'$distro' is an invalid distro choice."
