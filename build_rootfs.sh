@@ -98,6 +98,109 @@ elif [ "$distro" = "alpine" ]; then
     --initdb add alpine-base
   chroot_script="/opt/setup_rootfs_alpine.sh"
 
+elif [ "$distro" = "artix" ]; then
+  assert_deps "zstd"
+
+  init_system="${release_name:-openrc}"
+  if [ "$init_system" != "openrc" ] && [ "$init_system" != "runit" ] && [ "$init_system" != "s6" ] && [ "$init_system" != "dinit" ]; then
+    print_error "invalid init system '$init_system' for artix. valid values: openrc, runit, s6, dinit"
+    exit 1
+  fi
+  if [ "$init_system" != "openrc" ]; then
+    print_error "warning: only openrc has been tested with shimboot. other init systems may not work correctly."
+    sleep 2
+  fi
+
+  real_arch="x86_64"
+  if [ "$arch" = "arm64" ]; then
+    real_arch="aarch64"
+  fi
+
+  bootstrap_mirror="https://mirror.artixlinux.org/bootstrap/"
+  print_info "finding latest artix bootstrap tarball"
+  bootstrap_file="$(wget -qO- "$bootstrap_mirror" | pcregrep -o1 '"(artix-bootstrap-[0-9]+-x86_64\.tar\.zst)"' | tail -n1)"
+
+  if [ -z "$bootstrap_file" ]; then
+    print_error "could not find an artix bootstrap tarball at $bootstrap_mirror"
+    exit 1
+  fi
+
+  bootstrap_url="${bootstrap_mirror}${bootstrap_file}"
+  bootstrap_extract_dir="/tmp/artix-bootstrap-$$"
+  bootstrap_tarball="/tmp/artix-bootstrap-$$.tar.zst"
+
+  rm -rf "$bootstrap_extract_dir"
+  mkdir -p "$bootstrap_extract_dir"
+
+  print_info "downloading artix bootstrap: $bootstrap_url"
+  wget -q --show-progress "$bootstrap_url" -O "$bootstrap_tarball"
+
+  print_info "extracting artix bootstrap"
+  tar --zstd -xf "$bootstrap_tarball" -C "$bootstrap_extract_dir"
+  rm -f "$bootstrap_tarball"
+
+  bootstrap_root="$(find "$bootstrap_extract_dir" -maxdepth 1 -mindepth 1 -type d | head -1)"
+
+  if [ -z "$bootstrap_root" ]; then
+    print_error "failed to find extracted bootstrap directory"
+    rm -rf "$bootstrap_extract_dir"
+    exit 1
+  fi
+
+  print_info "preparing bootstrap environment"
+  cp /etc/resolv.conf "$bootstrap_root/etc/resolv.conf"
+  for mnt in proc sys dev; do
+    mount --bind "/$mnt" "$bootstrap_root/$mnt"
+  done
+  mount --bind /dev/pts "$bootstrap_root/dev/pts"
+
+  chroot "$bootstrap_root" pacman-key --init
+  chroot "$bootstrap_root" pacman-key --populate artix
+
+  if [ "$arch" = "arm64" ]; then
+    print_info "configuring bootstrap for arm64 cross-installation"
+
+    if grep -q "^Architecture" "$bootstrap_root/etc/pacman.conf"; then
+      sed -i "s/^Architecture\s*=.*/Architecture = aarch64/" "$bootstrap_root/etc/pacman.conf"
+    else
+      sed -i "/\[options\]/a Architecture = aarch64" "$bootstrap_root/etc/pacman.conf"
+    fi
+
+    cat >> "$bootstrap_root/etc/pacman.conf" << 'PACMAN_REPOS'
+
+[artixarm-system]
+Server = https://mirror.artixlinux.org/artixarm/system/$arch/
+
+[artixarm-world]
+Server = https://mirror.artixlinux.org/artixarm/world/$arch/
+
+[artixarm-galaxy]
+Server = https://mirror.artixlinux.org/artixarm/galaxy/$arch/
+
+[alarm]
+Server = https://mirror.archlinuxarm.org/$arch/$repo
+PACMAN_REPOS
+
+    chroot "$bootstrap_root" pacman-key --recv-keys 68B3537F39A313B3E574D06777193F152BDBE6A6 || true
+    chroot "$bootstrap_root" pacman-key --lsign-key 68B3537F39A313B3E574D06777193F152BDBE6A6 || true
+  fi
+
+  mkdir -p "$bootstrap_root/mnt/target"
+  mount --bind "$rootfs_dir" "$bootstrap_root/mnt/target"
+
+  print_info "running pacstrap to install artix base system (this may take a while)"
+  chroot "$bootstrap_root" pacstrap /mnt/target \
+    base base-devel openrc elogind-openrc
+
+  umount "$bootstrap_root/mnt/target"
+  umount "$bootstrap_root/dev/pts"
+  for mnt in dev sys proc; do
+    umount "$bootstrap_root/$mnt"
+  done
+  rm -rf "$bootstrap_extract_dir"
+
+  chroot_script="/opt/setup_rootfs_artix.sh"
+
 else
   print_error "'$distro' is an invalid distro choice."
   exit 1
