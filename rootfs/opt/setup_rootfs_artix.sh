@@ -120,7 +120,6 @@ if [ -z "$disable_base_pkgs" ]; then
     fuse3 fuse2 \
     cronie cronie-openrc \
     syslog-ng syslog-ng-openrc \
-    cloud-utils \
     kmod \
     iwd
 
