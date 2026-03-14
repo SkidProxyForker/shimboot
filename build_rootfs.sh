@@ -138,7 +138,7 @@ elif [ "$distro" = "artix" ]; then
     git clone --depth=1 https://github.com/gripped/artix-bootstrap.git "$artix_bootstrap_dir"
 
     print_info "running artix-bootstrap (this may take a while)"
-    bash "$artix_bootstrap_dir/artix-bootstrap.sh" -i "$init_system" "$rootfs_dir"
+    (cd "$artix_bootstrap_dir" && bash artix-bootstrap.sh -i "$init_system" "$rootfs_dir")
 
     rm -rf "$artix_bootstrap_dir"
   fi
