@@ -221,7 +221,7 @@ if [ ! "$rootfs_dir" ]; then
       print_error "invalid init system '$release' for artix. valid values: openrc, runit, s6, dinit"
       exit 1
     fi
-    needed_deps="$needed_deps zstd"
+    needed_deps="$needed_deps"
   else
     print_error "invalid distro selection"
     exit 1
