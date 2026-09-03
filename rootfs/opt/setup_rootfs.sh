@@ -111,6 +111,9 @@ END
 #install desktop and other custom packages
 apt-get install -y $packages
 
+#install OpenVPN
+apt-get install -y openvpn network-manager-openvpn network-manager-openvpn-gnome
+
 #disable selinux to prevent a harmless error from showing up during the boot
 echo "SELINUX=disabled" >> /etc/selinux/config
 
@@ -145,4 +148,4 @@ set_password "$username" "$user_passwd"
 apt-get clean
 
 #enable bash greeter
-echo "/usr/local/bin/shimboot_greeter" >> "/home/$username/.bashrc" 
+echo "/usr/local/bin/shimboot_greeter" >> "/home/$username/.bashrc"
